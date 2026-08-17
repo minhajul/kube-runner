@@ -1,0 +1,67 @@
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+
+# --- Logs / tmp ---
+*.log
+*.tmp
+tmp/
+.tmp/
+
+# --- Secrets / credentials (NEVER commit these) ---
+# Real GitHub App Secret (created out-of-band via `kubectl create secret`)
+# The .example.yaml template IS committed; the real one must not be.
+*github-app-secret*.yaml
+!github-app-secret*.example.yaml
+secrets/
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+# --- Kubeconfig / kube contexts ---
+kubeconfig
+kubeconfig.*
+*.kubeconfig
+.kube/
+
+# --- Helm output / vendored charts ---
+charts/*.tgz
+**/charts/*.tgz
+helm-output/
+*.tgz
+
+# --- Go app ---
+# Build output
+app/bin/
+app/*.exe
+app/dist/
+app/out/
+# Go workspace / module caches
+app/vendor/
+# Coverage
+app/*.out
+app/coverage.html
+
+# --- Docker / image build ---
+# Multi-stage build contexts (if anyone builds outside Docker daemon)
+**/.dockerignore.bak
+# Leftover buildkit cache markers
+.buildkit-cache/
+
+# --- Kustomize ---
+# Generated YAML from `kustomize build` (only useful locally, never committed)
+kustomize-output/
+**/*.rendered.yaml
+
+# --- Workflow / CI caches ---
+# Action caches that some setups drop in-tree
+.cache/
+**/__pycache__/
