@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# dev overlay: rewrite the App Image to the k3d built-in registry (ADR-0003).
+#
+# The registry host is coupled to the cluster name (k3d names its
+# registries `k3d-<cluster>-registry.localhost:5000`). If you ever
+# recreate the cluster with a different name, change `k3d-kube-runner`
+# below in lockstep.
+#
+# ADR-0003 / ADR-0005:
+#   - registry path lives in the overlay, not in the workflow string
+#     template
+#   - workflow only stamps `newTag:` (set elsewhere, see .github/workflows/)
+
+namespace: app
+
+resources:
+  - ../../base
+
+images:
+  - name: kube-runner-app
+    newName: k3d-kube-runner-registry.localhost:5000/kube-runner-app
+    newTag: dev

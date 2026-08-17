@@ -52,7 +52,7 @@ A self-hosted GitHub Actions runner that lives **inside a Kubernetes cluster** a
 
 **Healthz Endpoint Contract** — `/healthz` returns HTTP 200 with body exactly `ok`. Both conditions are checked; either failing fails the workflow. See ADR-0007.
 
-**Verification Step** — The final step of the workflow. Runs a single `curl` from the Runner Pod to `http://app.app.svc.cluster.local:8080/healthz`, asserts both status 200 and body `ok`. The single source of truth for "is the deployment successful."
+**Verification Step** — The final step of the workflow. Runs a single `curl` from the Runner Pod to `http://kube-runner-app.app.svc.cluster.local:8080/healthz`, asserts both status 200 and body `ok`. The single source of truth for "is the deployment successful."
 
 ## Out of scope (for v1)
 

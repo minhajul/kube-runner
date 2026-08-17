@@ -1,0 +1,19 @@
+# Helm values for the ARC controller chart.
+# Chart: oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+#
+# Install with:
+#   helm install arc-controller \
+#     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller \
+#     --version <chart-version> \
+#     --namespace arc-systems \
+#     --create-namespace \
+#     --values arc/controller-values.yaml
+#
+# The controller is just the CRD reconciler; the actual GitHub creds
+# and listener config live in arc/runner-scale-set-values.yaml.
+
+# Watch arc-systems, arc-runners, and app. The controller only needs to
+# watch the namespaces it owns (arc-systems, arc-runners); watching `app`
+# is harmless but unnecessary — kept out for the principle of least
+# privilege.
+namespace: arc-systems

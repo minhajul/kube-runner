@@ -13,7 +13,7 @@ The project's end-to-end success criterion is "deploy and verify a Go applicatio
 Verification is a single HTTP call from the Runner Pod to the in-cluster Service URL:
 
 ```
-GET http://app.app.svc.cluster.local:8080/healthz
+GET http://kube-runner-app.app.svc.cluster.local:8080/healthz
 ```
 
 The contract is:

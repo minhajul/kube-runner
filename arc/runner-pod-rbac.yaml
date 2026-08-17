@@ -1,0 +1,57 @@
+# RBAC for the Runner Pod's ServiceAccount, scoped to the `app` namespace only.
+#
+# Apply only (per Round 4 Q4):
+#   - get, list, create, patch on deployments, services
+#   - get, list on pods
+#   - create on pods/exec  (so the verification step can curl via exec
+#                            *or* curl the in-cluster Service — both work)
+#   - NO delete. The workflow must not be able to remove the deployment.
+#
+# Authentication: the runner pod uses the auto-mounted ServiceAccount token
+# at /var/run/secrets/kubernetes.io/serviceaccount/token. No kubeconfig.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-runner-app-deployer
+  namespace: arc-runners
+  labels:
+    app.kubernetes.io/part-of: kube-runner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kube-runner-app-deployer
+  namespace: app
+  labels:
+    app.kubernetes.io/part-of: kube-runner
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "services"]
+    # Apply-only: no `create` as a standalone verb, no `delete`. The
+    # workflow can only `kubectl apply` manifests that reference the one
+    # Deployment + Service in the overlay. (See Round 4 Q4 + Standards
+    # review S-1.)
+    verbs: ["get", "list", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kube-runner-app-deployer
+  namespace: app
+  labels:
+    app.kubernetes.io/part-of: kube-runner
+subjects:
+  - kind: ServiceAccount
+    name: kube-runner-app-deployer
+    namespace: arc-runners
+roleRef:
+  kind: Role
+  name: kube-runner-app-deployer
+  apiGroup: rbac.authorization.k8s.io

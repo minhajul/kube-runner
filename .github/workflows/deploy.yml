@@ -1,0 +1,83 @@
+name: deploy
+
+# Triggers: push to main only (Round 4 Q5).
+# Runner: self-hosted, in-cluster, picked up by ARC.
+on:
+  push:
+    branches: [main]
+
+# Single job — build, push, apply, verify.
+# Verification curl is the contract from ADR-0007: 200 + body "ok".
+jobs:
+  build-deploy-verify:
+    runs-on: kube-runner   # matches runnerScaleSetName in arc/runner-scale-set-values.yaml
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Run Go tests
+        working-directory: app
+        run: go test ./...
+
+      # The runner image is pre-built and pinned in arc/runner-scale-set-values.yaml.
+      # No `docker build` for the runner image in this workflow — that's
+      # operator-side, not CI-side.
+      - name: Build the Go app image
+        working-directory: app
+        run: |
+          docker build \
+            --tag k3d-kube-runner-registry.localhost:5000/kube-runner-app:${{ github.sha }} \
+            .
+
+      - name: Push the Go app image to k3d registry
+        working-directory: app
+        run: |
+          docker push k3d-kube-runner-registry.localhost:5000/kube-runner-app:${{ github.sha }}
+
+      # Apply the overlay with this build's SHA stamped into the image
+      # tag. We copy the overlay to a tmpdir, sed the tag in (the
+      # committed overlay stays clean), and `kubectl apply -k` against
+      # the tmpdir. (See Spec review P-3: no in-place mutation of the
+      # committed overlay, no standalone `kustomize` binary needed —
+      # stock kubectl handles Kustomize natively via `-k`.)
+      - name: Apply the dev overlay with the build's SHA tag
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp -r k8s/base "$tmp/base"
+          cp -r k8s/overlays/dev/. "$tmp/"
+          sed -i.bak \
+            "s|newTag: dev$|newTag: ${{ github.sha }}|" \
+            "$tmp/kustomization.yaml"
+          rm "$tmp/kustomization.yaml.bak"
+          kubectl apply -k "$tmp"
+          rm -rf "$tmp"
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/kube-runner-app \
+            --namespace app \
+            --timeout=120s
+
+      # ADR-0007 verification contract: HTTP 200 + body "ok". Both checked.
+      - name: Verify /healthz
+        run: |
+          set -euo pipefail
+          body="$(mktemp)"
+          status="$(curl -sS -o "$body" -w '%{http_code}' \
+            http://kube-runner-app.app.svc.cluster.local:8080/healthz)"
+          if [[ "$status" != "200" ]]; then
+            echo "FAIL: /healthz returned $status (want 200)"
+            exit 1
+          fi
+          if [[ "$(cat "$body")" != "ok" ]]; then
+            echo "FAIL: /healthz body was '$(cat "$body")' (want 'ok')"
+            exit 1
+          fi
+          echo "OK: /healthz returned 200 with body 'ok'"

@@ -1,0 +1,76 @@
+# syntax=docker/dockerfile:1.7
+#
+# Custom runner image — see ADR-0002.
+#
+# Layers the Go toolchain, Docker CLI, and kubectl on top of the official
+# actions/runner image so that ephemeral Runner Pods have everything they
+# need to build the Go app, push it to the k3d built-in registry, and
+# kubectl-apply the Kustomize overlay without per-job downloads.
+#
+# Pinned versions:
+#   Go    1.25.x (matches app/go.mod)
+#   kubectl 1.32.x (k3d default)
+# Pinned digest/last tag of docker-cli matches what's on the host; version
+# drift here is the most common cause of "works on my machine, fails in CI".
+
+FROM ghcr.io/actions/actions-runner:latest
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG GO_VERSION=1.25.0
+ARG KUBECTL_VERSION=1.32.3
+
+USER root
+
+# Base packages: ca-certificates (registry TLS), curl (downloads),
+# git (checkout in the workflow), gnupg (apt keyring for Docker CLI).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        gnupg \
+ && rm -rf /var/lib/apt/lists/*
+
+# ---- Go (toolchain) ----
+# Install to /usr/local/go and put the binary on PATH for any subsequent
+# RUN steps and for the eventual workflow. The actions/runner image
+# already adds /usr/local/go/bin to PATH via the env it inherits, but we
+# do it again to be explicit.
+RUN set -eux; \
+    curl -fsSL -o /tmp/go.tgz "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz"; \
+    tar -C /usr/local -xzf /tmp/go.tgz; \
+    rm /tmp/go.tgz; \
+    /usr/local/go/bin/go version
+
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/home/runner/go"
+ENV PATH="${GOPATH}/bin:${PATH}"
+
+# ---- Docker CLI (so the runner can docker build/push to k3d registry) ----
+# We install only the CLI; the daemon is the host's (k3d's containerd).
+RUN set -eux; \
+    install -m 0755 -d /etc/apt/keyrings; \
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg; \
+    chmod a+r /etc/apt/keyrings/docker.gpg; \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu jammy stable" \
+        > /etc/apt/sources.list.d/docker.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends docker-ce-cli; \
+    rm -rf /var/lib/apt/lists/*
+
+# ---- kubectl ----
+RUN set -eux; \
+    curl -fsSLo /usr/local/bin/kubectl \
+        "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"; \
+    chmod +x /usr/local/bin/kubectl; \
+    kubectl version --client=true
+
+# NB: we deliberately do NOT install the standalone `kustomize` binary.
+# `kubectl apply -k` is built into stock kubectl ≥ 1.14, which is enough
+# for Kustomize overlays (ADR-0005). Saves ~30 MB on the runner image and
+# removes the in-place `kustomize edit set image` mutation that the
+# workflow would otherwise need.
+
+# The official actions/runner image ships with a `runner` user; switch back.
+USER runner

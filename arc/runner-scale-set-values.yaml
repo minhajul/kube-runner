@@ -1,0 +1,43 @@
+# Helm values for the ARC runner-scale-set chart.
+# Chart: oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-runner-scale-set
+#
+# Install with:
+#   helm install runner-scale-set \
+#     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-runner-scale-set \
+#     --version <chart-version> \
+#     --namespace arc-systems \
+#     --values arc/runner-scale-set-values.yaml
+
+# GitHub target — repo-level pool for github.com/minhajul/kube-runner
+githubServerUrl: https://github.com
+runnerScaleSetName: kube-runner
+runnerGroup: Default
+
+# GitHub App credentials. The Secret MUST exist before helm install; see
+# arc/github-app-secret.example.yaml for the shape.
+githubConfigSecret: gha-rs-github-secret
+
+# Polling listener — see ADR-0006. No inbound webhook, no Service exposure.
+runnerListenerType: polling
+
+# Sizing — see Round 4 Q2.
+minRunners: 1
+maxRunners: 5
+
+# Custom runner image — see ADR-0002. Build and push to your registry of
+# choice (e.g. ghcr.io/minhajul/kube-runner-runner:dev) before installing.
+# Once the image exists, replace `:dev` with a pinned digest, e.g.
+# `ghcr.io/minhajul/kube-runner-runner@sha256:...`. :latest was rejected
+# in the code review because it is a mutable ref.
+runnerImage: ghcr.io/minhajul/kube-runner-runner:dev
+
+# Wire the apply-only RBAC into the ephemeral Runner Pod. The chart will
+# create the ServiceAccount for us — but only if we name it here. Without
+# this, the runner pod uses the chart default SA and the RoleBinding in
+# arc/runner-pod-rbac.yaml binds to nothing. (Standards review P-6.)
+template:
+  spec:
+    serviceAccountName: kube-runner-app-deployer
+
+# Namespaces the controller and listener pods land in. Per ADR-0004.
+namespace: arc-systems

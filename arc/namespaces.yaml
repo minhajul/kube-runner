@@ -1,0 +1,27 @@
+# Three namespaces per ADR-0004:
+#   arc-systems  — ARC controller + Listener + GitHub App credentials Secret
+#   arc-runners  — ephemeral Runner Pods (no long-lived resources)
+#   app          — deployed Go app (the only namespace the runner SA can touch)
+#
+# Apply once per cluster, before installing ARC.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arc-systems
+  labels:
+    app.kubernetes.io/part-of: kube-runner
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arc-runners
+  labels:
+    app.kubernetes.io/part-of: kube-runner
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app
+  labels:
+    app.kubernetes.io/part-of: kube-runner
